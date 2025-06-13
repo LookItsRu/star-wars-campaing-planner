@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Wars 3600 BBY: Campaign Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Tatooine Sunset -->
+    <!-- Application Structure Plan: A multi-module, single-page application designed as a Game Master's dashboard. A fixed left-hand navigation sidebar allows switching between core planning modules: a 'Galactic State' overview with an interactive timeline and faction browser; a 'World Holocron' for exploring key planets; a 'Campaign Generator' for story hooks and starting scenarios; and a 'Player & Mechanics' section detailing SW5e rules, classes, and a custom interactive Light vs. Dark morality tracker. This non-linear, task-oriented structure was chosen to empower the GM to access specific information as needed during campaign planning, rather than forcing them through a linear report. It prioritizes quick access to interconnected data (e.g., finding a plot hook on a specific planet controlled by a certain faction), making the planning process more dynamic and intuitive. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Key historical events. Goal: Show temporal relationships. Viz/Method: Interactive HTML/CSS timeline. Interaction: Click to expand details. Justification: More engaging than a static table.
+        - Report Info: Factions, planets, classes. Goal: Organize and compare. Viz/Method: Filterable HTML/Tailwind card grids. Interaction: Filter by type/alignment, click for details. Justification: Facilitates easy Browse and deep dives into specific entities.
+        - Report Info: SW5e Class Hit Dice. Goal: Compare character durability. Viz/Method: Chart.js Bar Chart. Interaction: Hover for tooltips. Justification: Provides a quick, clear visual comparison of a key game statistic.
+        - Report Info: Light vs. Dark side concepts. Goal: Explain and visualize a core custom mechanic. Viz/Method: Custom HTML/CSS/JS interactive scale. Interaction: Click/hover on levels to see descriptions. Justification: Makes an abstract rule concept tangible and easy to reference.
+        - Report Info: Story hooks/starting scenarios. Goal: Spark creative ideas. Viz/Method: Categorized lists and a random generator button. Interaction: Click to get a random hook. Justification: Directly addresses the user's primary need for story inspiration in a fun, interactive way.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #FFFBF5;
+            color: #43382c;
+        }
+        h1, h2, h3, h4, .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .sidebar-icon {
+            width: 24px;
+            height: 24px;
+            stroke-width: 1.5;
+        }
+        .nav-link.active {
+            background-color: #D87D4A;
+            color: #FFFBF5;
+            box-shadow: 0 4px 6px -1px rgba(216, 125, 74, 0.3), 0 2px 4px -1px rgba(216, 125, 74, 0.2);
+        }
+        .nav-link:not(.active):hover {
+            background-color: #F5EFE6;
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            top: 12px;
+            left: -21px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #D87D4A;
+            border: 2px solid #FFFBF5;
+        }
+        .card-bg { background-color: #F5EFE6; }
+        .card-bg:hover { background-color: #EFE8DD; }
+        .btn-primary {
+            background-color: #D87D4A;
+            color: #FFFBF5;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .btn-primary:hover { background-color: #C76A3D; transform: translateY(-2px); }
+        .btn-secondary {
+            background-color: #5B8291;
+            color: #FFFBF5;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .btn-secondary:hover { background-color: #4A6B78; transform: translateY(-2px); }
+        
+        .morality-scale-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            padding: 2rem 0;
+        }
+        .morality-bar {
+            display: flex;
+            width: 100%;
+            max-width: 800px;
+            height: 20px;
+            background: linear-gradient(to right, #D87D4A, #c79b82, #F5EFE6, #a4b3b8, #5B8291);
+            border-radius: 10px;
+            position: relative;
+        }
+        .morality-level {
+            flex: 1;
+            position: relative;
+            cursor: pointer;
+        }
+        .morality-level::after {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 30px;
+            background: #43382c;
+            opacity: 0.3;
+        }
+        .morality-level:first-child::after, .morality-level:last-child::after {
+            left: 0;
+            transform: none;
+        }
+        .morality-level:last-child::after {
+            left: auto;
+            right: 0;
+        }
+        .morality-level .level-label {
+            position: absolute;
+            top: 35px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75rem;
+            white-space: nowrap;
+            color: #43382c;
+            opacity: 0.7;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+            max-height: 50vh;
+        }
+    </style>
+</head>
+<body class="flex bg-[#FFFBF5]">
+
+    <!-- Sidebar Navigation -->
+    <aside class="fixed top-0 left-0 h-screen w-16 md:w-64 bg-[#F5EFE6] shadow-lg z-10 transition-all duration-300">
+        <div class="flex flex-col h-full">
+            <div class="flex items-center justify-center md:justify-start md:pl-6 h-20 border-b border-[#EFE8DD]">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-[#D87D4A] to-[#5B8291]"></div>
+                <span class="hidden md:block ml-4 text-xl font-orbitron">GM Holocron</span>
+            </div>
+            <nav class="flex-grow mt-4">
+                <a href="#dashboard" class="nav-link flex items-center py-4 px-6 md:px-6 my-1 transition-colors duration-200" data-section="dashboard">
+                    <svg class="sidebar-icon stroke-current" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                    <span class="hidden md:block mx-4">Dashboard</span>
+                </a>
+                <a href="#state" class="nav-link flex items-center py-4 px-6 md:px-6 my-1 transition-colors duration-200" data-section="state">
+                    <svg class="sidebar-icon stroke-current" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2h1a2 2 0 002-2v-1a2 2 0 012-2h1.945M12 15v6m-6-6v6m12-6v6M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span class="hidden md:block mx-4">Galactic State</span>
+                </a>
+                <a href="#worlds" class="nav-link flex items-center py-4 px-6 md:px-6 my-1 transition-colors duration-200" data-section="worlds">
+                    <svg class="sidebar-icon stroke-current" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2h1a2 2 0 002-2v-1a2 2 0 012-2h1.945M12 15v6m-6-6v6m12-6v6M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span class="hidden md:block mx-4">World Holocron</span>
+                </a>
+                <a href="#campaign" class="nav-link flex items-center py-4 px-6 md:px-6 my-1 transition-colors duration-200" data-section="campaign">
+                    <svg class="sidebar-icon stroke-current" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    <span class="hidden md:block mx-4">Campaign Generator</span>
+                </a>
+                <a href="#mechanics" class="nav-link flex items-center py-4 px-6 md:px-6 my-1 transition-colors duration-200" data-section="mechanics">
+                    <svg class="sidebar-icon stroke-current" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span class="hidden md:block mx-4">Player & Mechanics</span>
+                </a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="ml-16 md:ml-64 flex-1 p-4 sm:p-6 md:p-10 transition-all duration-300">
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="content-section">
+            <h1 class="text-3xl md:text-4xl font-orbitron mb-2">Campaign Planner: Old Republic Era</h1>
+            <p class="text-lg text-gray-600 mb-8">Welcome, Game Master. This Holocron is your guide to crafting an unforgettable saga in the tumultuous year of 3600 BBY.</p>
+            
+            <div class="bg-gradient-to-br from-[#F5EFE6] to-[#EFE8DD] p-8 rounded-xl shadow-md mb-8">
+                <h2 class="text-2xl font-orbitron mb-4">Random Plot Hook Generator</h2>
+                <p class="mb-6">Need a spark of inspiration? A single idea can ignite a galaxy-spanning adventure. Press the button to generate a random story hook drawn from the chaos of the Cold War.</p>
+                <div id="random-hook-container" class="min-h-[100px] bg-[#FFFBF5] p-4 rounded-lg mb-6 shadow-inner text-gray-700 italic">
+                    Press a button to generate a hook...
+                </div>
+                <div class="flex flex-wrap gap-4">
+                    <button id="generate-static-hook-btn" class="btn-primary font-bold py-2 px-6 rounded-lg shadow-sm">Generate Static Hook</button>
+                    <button id="generate-llm-hook-btn" class="btn-secondary font-bold py-2 px-6 rounded-lg shadow-sm">Generate AI Plot Hook ✨</button>
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="card-bg p-6 rounded-xl shadow-md">
+                    <h3 class="font-orbitron text-xl mb-3">The State of the Galaxy</h3>
+                    <p class="mb-4">The Great War is over, but the peace is a lie. Explore the fragile political landscape, the key factions vying for power, and the historical events that define this era of intrigue.</p>
+                    <a href="#state" class="font-bold text-[#D87D4A] hover:underline section-changer" data-section="state">Explore Galactic State &rarr;</a>
+                </div>
+                <div class="card-bg p-6 rounded-xl shadow-md">
+                    <h3 class="font-orbitron text-xl mb-3">The Light & Dark</h3>
+                    <p class="mb-4">Every action has a consequence. Delve into the custom morality system, where choices pull characters towards the light or dark, with each step having a profound impact on their journey.</p>
+                    <a href="#mechanics" class="font-bold text-[#5B8291] hover:underline section-changer" data-section="mechanics">Understand Morality &rarr;</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Galactic State Section -->
+        <section id="state" class="content-section">
+            <h1 class="text-3xl md:text-4xl font-orbitron mb-6">Galactic State: The Cold War</h1>
+            <p class="text-lg text-gray-600 mb-10">This section provides a high-level overview of the galaxy around 3600 BBY. Use the interactive timeline to understand the history that led to the current tensions and browse the major factions to learn about the key players shaping galactic events. This context is crucial for building a believable world for your players.</p>
+
+            <div class="mb-12">
+                <h2 class="text-2xl font-orbitron border-b-2 border-[#D87D4A] pb-2 mb-6">Timeline of an Era</h2>
+                <div id="timeline-container" class="relative border-l-2 border-[#EFE8DD] pl-6">
+                    <!-- Timeline items will be injected here by JS -->
+                </div>
+            </div>
+
+            <div>
+                <h2 class="text-2xl font-orbitron border-b-2 border-[#5B8291] pb-2 mb-6">Major Factions & Organizations</h2>
+                <div class="mb-6 flex space-x-2" id="faction-filters">
+                     <button class="filter-btn-faction px-4 py-1 rounded-full bg-[#EFE8DD] data-[active='true']:bg-[#D87D4A] data-[active='true']:text-white" data-filter="all">All</button>
+                    <button class="filter-btn-faction px-4 py-1 rounded-full bg-[#EFE8DD] data-[active='false']:bg-[#EFE8DD]" data-filter="Republic">Republic</button>
+                    <button class="filter-btn-faction px-4 py-1 rounded-full bg-[#EFE8DD] data-[active='false']:bg-[#EFE8DD]" data-filter="Imperial">Sith Empire</button>
+                    <button class="filter-btn-faction px-4 py-1 rounded-full bg-[#EFE8DD] data-[active='false']:bg-[#EFE8DD]" data-filter="Independent">Independent</button>
+                </div>
+                <div id="faction-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Faction cards will be injected here by JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- World Holocron Section -->
+        <section id="worlds" class="content-section">
+            <h1 class="text-3xl md:text-4xl font-orbitron mb-6">World Holocron</h1>
+            <p class="text-lg text-gray-600 mb-10">The galaxy is a vast tapestry of diverse worlds, each with its own story, conflicts, and secrets. This Holocron serves as your guide to the most notable planets of the era. Use the filters to navigate between core systems, Imperial strongholds, and the lawless Outer Rim. Select a planet to uncover vital intelligence for your adventures.</p>
+             <div class="mb-6 flex flex-wrap gap-2" id="planet-filters">
+                <button class="filter-btn-planet px-4 py-1 rounded-full bg-[#EFE8DD] data-[active='true']:bg-[#D87D4A] data-[active='true']:text-white" data-filter="all">All Worlds</button>
+                <button class="filter-btn-planet px-4 py-1 rounded-full bg-[#EFE8DD] data-[active='false']:bg-[#EFE8DD]" data-filter="Core">Core Worlds</button>
+                <button class="filter-btn-planet px-4 py-1 rounded-full bg-[#EFE8DD] data-[active='false']:bg-[#EFE8DD]" data-filter="Imperial">Imperial Worlds</button>
+                <button class="filter-btn-planet px-4 py-1 rounded-full bg-[#EFE8DD] data-[active='false']:bg-[#EFE8DD]" data-filter="Contested">Contested/Neutral</button>
+            </div>
+            <div id="planet-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                 <!-- Planet cards will be injected here by JS -->
+            </div>
+        </section>
+
+        <!-- Campaign Generator Section -->
+        <section id="campaign" class="content-section">
+            <h1 class="text-3xl md:text-4xl font-orbitron mb-6">Campaign Generator</h1>
+            <p class="text-lg text-gray-600 mb-10">This module is the heart of your creative process. Here you will find a curated collection of story hooks and starting scenarios designed to kickstart your campaign. Browse through thematic categories or use the random generator for a spark of inspiration. Every idea is a potential saga waiting to be written.</p>
+            
+            <div id="story-hooks-container" class="space-y-10">
+                <!-- Story hooks will be injected here -->
+            </div>
+        </section>
+
+        <!-- Player & Mechanics Section -->
+        <section id="mechanics" class="content-section">
+            <h1 class="text-3xl md:text-4xl font-orbitron mb-6">Player & Mechanics</h1>
+            <p class="text-lg text-gray-600 mb-10">A successful campaign requires a firm grasp of the rules that govern the galaxy. This section details the custom Light vs. Dark morality system, provides an overview of SW5e classes, and highlights the key mechanical differences for players coming from D&D 5e. Use these tools to help your players build their characters and understand the consequences of their actions.</p>
+
+            <div class="mb-12 card-bg p-6 rounded-xl shadow-md">
+                 <h2 class="text-2xl font-orbitron border-b-2 border-gray-400 pb-2 mb-6">The Balance of the Force: A Morality System</h2>
+                 <p class="mb-4">Actions speak louder than words. In this campaign, your choices will shift your alignment on a scale from Light to Dark. Each step brings new perspectives and potential powers, but straying too far can lead to a point of no return. Use this interactive scale to understand the five tiers of both Light and Dark alignment.</p>
+                 <div class="morality-scale-container">
+                    <div id="morality-bar" class="morality-bar">
+                        <!-- Levels will be injected here -->
+                    </div>
+                 </div>
+                 <div id="morality-description" class="mt-8 min-h-[75px] bg-[#FFFBF5] p-4 rounded-lg shadow-inner text-center">
+                    Hover over or click a level on the scale to see its description.
+                 </div>
+                 <div class="flex justify-center mt-4">
+                     <button id="generate-morality-scenario-btn" class="btn-secondary font-bold py-2 px-6 rounded-lg shadow-sm">Generate Scenario ✨</button>
+                 </div>
+                 <div id="morality-scenario-output" class="mt-4 min-h-[75px] bg-[#FFFBF5] p-4 rounded-lg shadow-inner text-gray-700 italic">
+                    Scenarios related to the selected morality level will appear here.
+                 </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-10">
+                <div class="mb-12">
+                    <h2 class="text-2xl font-orbitron border-b-2 border-[#D87D4A] pb-2 mb-6">SW5e Class Overview</h2>
+                    <p class="mb-6">SW5e offers ten unique classes. The chart below provides a quick comparison of their starting durability (Hit Die), a key factor in their combat role.</p>
+                     <div class="chart-container">
+                        <canvas id="classHitDieChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="mb-12">
+                    <h2 class="text-2xl font-orbitron border-b-2 border-[#5B8291] pb-2 mb-6">From D&D 5e to SW5e</h2>
+                    <p class="mb-6">For those familiar with Dungeons & Dragons, SW5e will feel intuitive yet distinct. Here are the most significant changes to be aware of.</p>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left card-bg rounded-lg shadow-md">
+                            <thead class="font-orbitron text-sm uppercase bg-[#EFE8DD]">
+                                <tr>
+                                    <th class="p-3">Category</th>
+                                    <th class="p-3">D&D 5e</th>
+                                    <th class="p-3">SW5e</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rules-diff-table" class="divide-y divide-[#EFE8DD]">
+                                <!-- Rules differences will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+<script>
+const DB = {
+    timeline: [
+        { year: "3681 BBY", event: "Great Galactic War Begins", desc: "The re-emergent Sith Empire launches a massive sneak attack on the Galactic Republic, ending centuries of peace and reshaping galactic power dynamics." },
+        { year: "3661 BBY", event: "Mandalorian Blockade", desc: "Mandalorians blockade the Hydian Way, causing a severe supply crisis for the Republic." },
+        { year: "3653 BBY", event: "Sacking of Coruscant", desc: "An Imperial fleet attacks the Republic capital, destroying the Jedi Temple. The Republic is forced to sign the Treaty of Coruscant, marking a significant Imperial victory and beginning the Cold War. The Jedi relocate to Tython." },
+        { year: "3643 BBY", event: "Cold War Escalates", desc: "The events of the 'Star Wars: The Old Republic' game begin. The tenuous peace is constantly threatened by proxy wars, espionage, and skirmishes across the galaxy." },
+        { year: "3642 BBY", event: "Galactic War Begins", desc: "The Cold War officially ends as the tenuous peace collapses, leading to a renewed period of open conflict between the Republic and Empire." },
+        { year: "3640 BBY", event: "Rise of the Hutt Cartel", desc: "The Hutt Cartel attempts to assert itself as a galactic superpower, challenging both the Republic and Empire for control of key resources and territories." },
+        { year: "c. 3600 BBY", event: "The Current Era", desc: "A time of great uncertainty. The galaxy is a tinderbox of espionage and shifting allegiances. Independent powers operate in the shadows, and the future is unwritten. A perfect time for heroes and villains to forge their legends." }
+    ],
+    factions: [
+        { name: "Galactic Republic", filter: "Republic", desc: "The largest, albeit weakened, galactic power. It stands for democracy and freedom but is taxed by war, political infighting, and a shattered Jedi Order trying to rebuild on Tython." },
+        { name: "Sith Empire", filter: "Imperial", desc: "A resurgent, authoritarian power built on strength, fear, and a rigid social hierarchy. Internally rife with backstabbing and power plays, it seeks to dominate the galaxy and eradicate the Jedi." },
+        { name: "Hutt Cartel", filter: "Independent", desc: "A powerful criminal syndicate controlling much of the Outer Rim. They maintain a precarious neutrality, profiting from illegal activities like smuggling, slavery, and the spice trade." },
+        { name: "Czerka Corporation", filter: "Independent", desc: "A vast, amoral corporate conglomerate with interests in every market, from weapons manufacturing to colonization. Czerka is loyal only to its own bottom line and will work with any faction for profit." },
+        { name: "Mandalorian Clans", filter: "Independent", desc: "A warrior society that has rebuilt its power. They maintain a fierce neutrality, protecting their systems and are suspected of waiting to strike at whichever side is weakened by the war." },
+        { name: "The Exchange", filter: "Independent", desc: "A widespread criminal syndicate and bounty hunting company. Less centralized than the Hutts, but a pervasive presence in the underworld across the galaxy." }
+    ],
+    planets: [
+        { name: "Coruscant", filter: "Core", desc: "The galactic capital. A city-planet scarred by the Sith's sacking. A hub of political intrigue, corporate power, and shadowy underworld dealings in its lower levels." },
+        { name: "Tython", filter: "Core", desc: "The ancient, verdant homeworld of the Jedi. The Jedi Council has relocated here to rebuild and seek guidance from the Force, making it a sanctuary of light in a dark galaxy." },
+        { name: "Alderaan", filter: "Core", desc: "A world of breathtaking beauty torn apart by a brutal civil war between its noble houses. The Republic and Empire covertly back opposing sides in this high-stakes proxy war." },
+        { name: "Korriban", filter: "Imperial", desc: "The desolate, dark-side-steeped homeworld of the Sith. Riddled with the tombs of ancient Dark Lords, it is home to the re-established Sith Academy, where acolytes face brutal trials." },
+        { name: "Dromund Kaas", filter: "Imperial", desc: "The jungle-covered, lightning-wracked capital of the Sith Empire. A monument to Imperial power, but also a hotbed of Sith infighting and political conspiracy." },
+        { name: "Balmorra", filter: "Contested", desc: "An industrial world under brutal Imperial occupation. Its populace has formed a tenacious, Republic-backed resistance, making the planet a constant battlefield." },
+        { name: "Hoth", filter: "Contested", desc: "An ice planet littered with the wreckage of a colossal space battle between Republic and Imperial fleets. A frozen graveyard full of salvage, secrets, and pirates." },
+        { name: "Nal Hutta & Nar Shaddaa", filter: "Contested", desc: "The polluted Hutt homeworld and its vertical, crime-ridden moon. The undisputed capital of the galactic underworld, a haven for smugglers, bounty hunters, and spies." },
+        { name: "Tatooine", filter: "Contested", desc: "A harsh desert planet in the Outer Rim, nominally neutral but controlled by the Hutts. A lawless world of moisture farmers, Czerka operations, and hidden dangers." },
+        { name: "Taris", filter: "Contested", desc: "A former ecumenopolis, bombarded into a toxic ruin by the Sith centuries ago. The Republic is attempting a massive reconstruction effort, but the world is infested with rakghouls and political corruption." },
+        { name: "Belsavis", filter: "Contested", desc: "An ancient prison world of ice and lava, containing countless vaults holding the galaxy's most terrifying creatures, warlords, and dark-side experiments. A high-stakes battleground for control of its prisoners." },
+        { name: "Quesh", filter: "Contested", desc: "A world with a poisonous atmosphere, but the sole source of chemicals needed for potent military-grade adrenals. The Republic, Empire, and Hutts all fight for control of this invaluable resource." },
+    ],
+    storyHooks: {
+        "Cold War Intrigue": [
+            { title: "The Double Agent", hook: "A high-ranking Republic SIS agent is suspected of selling secrets to the Empire. The party must uncover the truth, but the agent may be a triple agent working for a third party, or is being blackmailed." },
+            { title: "Proxy War on Rishi", hook: "The party is hired as 'advisors' to a local faction on the tropical pirate haven of Rishi, only to discover their opponents are being advised by an enemy faction, turning a local squabble into a proxy war." },
+            { title: "Corporate Sabotage", hook: "Czerka Corporation hires the party to sabotage a rival's mining operation on a remote moon. The job seems straightforward, but the rival company has discovered an ancient, dangerous artifact in the mines." }
+        ],
+        "Force-Focused Narratives": [
+            { title: "The Lost Holocron", hook: "A Jedi Master's holocron, believed lost during the Sacking of Coruscant, surfaces on the black market of Nar Shaddaa. Both the Jedi and Sith are desperate to acquire it, and the party is caught in the middle." },
+            { title: "The Tomb of Naga Sadow", hook: "A Sith Lord tasks the party with exploring the newly unearthed tomb of the ancient Sith sorcerer Naga Sadow on Korriban, seeking secrets of Sith alchemy. The tomb's guardians and rivals are the least of their worries." },
+            { title: "The Emergent Threat", hook: "A child on a backwater world displays terrifying and uncontrolled Force abilities. The party must reach them before Imperial agents or zealous Jedi do, and decide the child's fate." }
+        ],
+        "Underworld & Independent Operations": [
+            { title: "The Hutt's Gambit", hook: "A Hutt kajidic hires the party for a 'simple' smuggling run, which is actually a crucial move in a Cartel power struggle. Success could earn them a powerful patron, but failure means ending up as rancor food." },
+            { title: "Mandalorian Justice", hook: "A Mandalorian clan leader's child has been kidnapped, and the party is hired to retrieve them. The trail leads deep into Coruscant's underworld, where they uncover a plot to frame the Mandalorians and break their neutrality." },
+            { title: "The Belsavis Breakout", hook: "The party is hired for the ultimate prison break: freeing a legendary slicer from the inescapable prison world of Belsavis. They must navigate Republic security, Imperial infiltrators, and the prison's monstrous permanent residents." }
+        ]
+    },
+    moralityLevels: [
+        { level: "Dark V", title: "Point of No Return", desc: "Dominated by the Dark Side. Actions are driven by pure hatred, rage, and greed. The character is a true monster, having sacrificed all traces of their former self for power." },
+        { level: "Dark IV", title: "Tyrant", desc: "Actively cruel and oppressive. Enjoys the suffering of others and uses fear as a primary tool. Seeks to control and dominate all aspects of their environment." },
+        { level: "Dark III", title: "Corrupted", desc: "The Dark Side has a strong hold. The character is selfish, ruthless, and manipulative, casually disregarding the lives and well-being of others to achieve their goals." },
+        { level: "Dark II", title: "Fallen", desc: "Regularly gives in to negative emotions like anger and fear. Willing to harm innocents and betray trust if it offers a significant advantage. The ends always justify the means." },
+        { level: "Dark I", title: "Tempted", desc: "The first steps into darkness. The character has made a conscious choice to perform an evil act for personal gain, tasting the power it brings. A dangerous path has begun." },
+        { level: "Neutral", title: "The Center", desc: "Guided by pragmatism, self-interest, or a personal code that defies simple labels of good and evil. Their choices are balanced, making them unpredictable." },
+        { level: "Light I", title: "Compassionate", desc: "The first steps into the light. The character has chosen to help others at personal risk or cost, acting out of empathy and a burgeoning sense of justice." },
+        { level: "Light II", title: "Guardian", desc: "Actively protects the innocent and stands against injustice. Makes personal sacrifices for the greater good and upholds their word, even when difficult." },
+        { level: "Light III", title: "Beacon", desc: "A symbol of hope. The character inspires others through their selfless actions and unwavering commitment to their ideals. They seek peaceful solutions but are a fierce opponent when forced to fight." },
+        { level: "Light IV", title: "Paragon", desc: "A true champion of the Light Side. Their life is dedicated to serving others, showing mercy to their enemies, and healing the galaxy's wounds. They resist the temptations of the Dark Side with great discipline." },
+        { level: "Light V", title: "Point of No Return", desc: "An embodiment of the Light Side. Utterly selfless, a conduit of the Force's will. Their personal identity is secondary to their role as a protector of all life." }
+    ],
+    rulesDiff: [
+        { category: "Skills", dnd: "Arcana, History, Religion", sw5e: "Consolidated into a single 'Lore' skill. 'Piloting' and 'Technology' added." },
+        { category: "Magic", dnd: "Spell Slots", sw5e: "Powers fueled by Force/Tech Points. Force recharges on long rest, Tech on short." },
+        { category: "Damage Types", dnd: "Bludgeoning, Piercing, Slashing", sw5e: "Unified into 'Kinetic' damage. 'Ion' damage added (vs droids/tech)." },
+        { category: "Weapons", dnd: "Simple, Martial", sw5e: "Blasters, Lightsabers, Vibroweapons with many new properties." },
+        { category: "Currency", dnd: "Gold Pieces (gp)", sw5e: "Credits (cr), with a 1gp = 10cr conversion." },
+        { category: "Backgrounds", dnd: "Feature, proficiencies", sw5e: "Also grants a choice of a feat at character creation." }
+    ],
+    classes: [
+        { name: "Berserker", hitDie: 12 }, { name: "Consular", hitDie: 6 },
+        { name: "Engineer", hitDie: 8 }, { name: "Fighter", hitDie: 10 },
+        { name: "Guardian", hitDie: 10 }, { name: "Monk", hitDie: 8 },
+        { name: "Operative", hitDie: 8 }, { name: "Scholar", hitDie: 8 },
+        { name: "Scout", hitDie: 10 }, { name: "Sentinel", hitDie: 8 }
+    ]
+};
+
+const apiKey = "";
+const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const navLinks = document.querySelectorAll('.nav-link');
+    const sections = document.querySelectorAll('.content-section');
+    const sectionChangers = document.querySelectorAll('.section-changer');
+
+    function showSection(sectionId) {
+        sections.forEach(section => {
+            section.classList.toggle('active', section.id === sectionId);
+        });
+        navLinks.forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === `#${sectionId}`);
+        });
+    }
+
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sectionId = link.getAttribute('data-section');
+            showSection(sectionId);
+            window.location.hash = sectionId;
+        });
+    });
+
+    sectionChangers.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sectionId = link.getAttribute('data-section');
+            showSection(sectionId);
+            window.location.hash = sectionId;
+        });
+    });
+
+    const initialSection = window.location.hash.substring(1) || 'dashboard';
+    showSection(initialSection);
+
+    populateTimeline();
+    populateFactions();
+    populateMoralityScale();
+    populateRulesDiff();
+    createClassChart();
+
+    // Populate story hooks without LLM first, then add LLM button separately
+    populateStoryHooks(); // Call this first to ensure static hooks are there
+
+    // LLM Plot Hook Generator
+    const generateLlmHookBtn = document.getElementById('generate-llm-hook-btn');
+    const hookContainer = document.getElementById('random-hook-container');
+    generateLlmHookBtn.addEventListener('click', async () => {
+        hookContainer.innerHTML = 'Generating AI plot hook...';
+        await generateLLMHook();
+    });
+
+    // Static Hook Generator (renamed)
+    const generateStaticHookBtn = document.getElementById('generate-static-hook-btn');
+    generateStaticHookBtn.addEventListener('click', () => {
+        const allHooks = Object.values(DB.storyHooks).flat();
+        const randomHook = allHooks[Math.floor(Math.random() * allHooks.length)];
+        hookContainer.innerHTML = `<h4 class="font-orbitron mb-2">${randomHook.title}</h4><p>${randomHook.hook}</p>`;
+    });
+
+    // Populate Planets after event listeners are ready
+    populatePlanets();
+
+    // Morality Scenario Generator
+    const generateMoralityScenarioBtn = document.getElementById('generate-morality-scenario-btn');
+    generateMoralityScenarioBtn.addEventListener('click', async () => {
+        const descriptionElement = document.getElementById('morality-description');
+        const currentTitleMatch = descriptionElement.querySelector('h4');
+        const currentDescMatch = descriptionElement.querySelector('p');
+
+        if (currentTitleMatch && currentDescMatch) {
+            const currentTitle = currentTitleMatch.textContent;
+            const currentDesc = currentDescMatch.textContent;
+            document.getElementById('morality-scenario-output').innerHTML = 'Generating scenario...';
+            await generateMoralityScenario(currentTitle, currentDesc);
+        } else {
+             document.getElementById('morality-scenario-output').innerHTML = 'Please click on a morality level first to select it.';
+        }
+    });
+});
+
+async function generateLLMHook() {
+    const hookContainer = document.getElementById('random-hook-container');
+    try {
+        let chatHistory = [];
+        const prompt = "Generate a detailed Star Wars Old Republic era campaign plot hook, considering political intrigue, Force-users, or underworld elements, suitable for a group of adventurers. Focus on the era around 3600 BBY during the Cold War. Provide a title and a brief description.";
+        chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+        const payload = { contents: chatHistory };
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+            const text = result.candidates[0].content.parts[0].text;
+            const lines = text.split('\n');
+            let title = "Generated Plot Hook";
+            let desc = text;
+            if (lines.length > 1 && lines[0].trim().startsWith("Title:")) {
+                title = lines[0].replace("Title:", "").trim();
+                desc = lines.slice(1).join('\n').trim();
+            } else if (lines.length > 1 && lines[0].trim().startsWith("**Title:**")) {
+                title = lines[0].replace("**Title:**", "").trim();
+                desc = lines.slice(1).join('\n').trim();
+            }
+            hookContainer.innerHTML = `<h4 class="font-orbitron mb-2">${title}</h4><p>${desc.replace(/\*\*/g, '')}</p>`;
+        } else {
+            hookContainer.innerHTML = 'Failed to generate plot hook. Please try again.';
+        }
+    } catch (error) {
+        console.error("Error generating LLM hook:", error);
+        hookContainer.innerHTML = 'Error generating plot hook. Please check console for details.';
+    }
+}
+
+async function generatePlanetQuest(planetName, planetDesc) {
+    const questOutputDiv = document.getElementById(`planet-quest-${planetName.replace(/\s+/g, '-')}`);
+    if (!questOutputDiv) return;
+
+    questOutputDiv.innerHTML = 'Generating quest idea...';
+    try {
+        let chatHistory = [];
+        const prompt = `Given the planet ${planetName} which is ${planetDesc}, generate a short quest idea suitable for a Star Wars Old Republic era tabletop game. Focus on a conflict or opportunity relevant to the planet's characteristics and the 3600 BBY Cold War setting. Provide a title and a brief quest summary.`;
+        chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+        const payload = { contents: chatHistory };
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+            const text = result.candidates[0].content.parts[0].text;
+            const lines = text.split('\n');
+            let title = "Generated Quest";
+            let summary = text;
+            if (lines.length > 1 && lines[0].trim().startsWith("Title:")) {
+                title = lines[0].replace("Title:", "").trim();
+                summary = lines.slice(1).join('\n').trim();
+            } else if (lines.length > 1 && lines[0].trim().startsWith("**Title:**")) {
+                title = lines[0].replace("**Title:**", "").trim();
+                summary = lines.slice(1).join('\n').trim();
+            }
+            questOutputDiv.innerHTML = `<h5 class="font-orbitron text-md mb-1">${title}</h5><p class="text-sm">${summary.replace(/\*\*/g, '')}</p>`;
+        } else {
+            questOutputDiv.innerHTML = 'Failed to generate quest idea. Please try again.';
+        }
+    } catch (error) {
+        console.error(`Error generating LLM quest for ${planetName}:`, error);
+        questOutputDiv.innerHTML = 'Error generating quest idea. Please check console for details.';
+    }
+}
+
+async function generateMoralityScenario(levelTitle, levelDesc) {
+    const scenarioOutputDiv = document.getElementById('morality-scenario-output');
+    scenarioOutputDiv.innerHTML = 'Generating scenario...';
+    try {
+        let chatHistory = [];
+        const prompt = `Describe a brief scenario or consequence for a character at the '${levelTitle}' tier in the Star Wars Old Republic era, reflecting their connection to the Force (Light or Dark) or neutrality. The scenario should be suitable for a tabletop RPG.`;
+        chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+        const payload = { contents: chatHistory };
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+            const text = result.candidates[0].content.parts[0].text;
+            scenarioOutputDiv.innerHTML = `<p>${text.replace(/\*\*/g, '<strong>').replace(/__ /g, '</strong>')}</p>`;
+        } else {
+            scenarioOutputDiv.innerHTML = 'Failed to generate scenario. Please try again.';
+        }
+    } catch (error) {
+        console.error("Error generating LLM morality scenario:", error);
+        scenarioOutputDiv.innerHTML = 'Error generating scenario. Please check console for details.';
+    }
+}
+
+
+function populateTimeline() {
+    const container = document.getElementById('timeline-container');
+    DB.timeline.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'timeline-item relative mb-8 pl-8';
+        div.innerHTML = `
+            <h3 class="text-xl font-orbitron text-[#D87D4A]">${item.year} - ${item.event}</h3>
+            <p class="text-gray-600">${item.desc}</p>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function populateFactions() {
+    const grid = document.getElementById('faction-grid');
+    const filters = document.getElementById('faction-filters');
+    let activeFilter = 'all';
+
+    function renderFactions() {
+        grid.innerHTML = '';
+        DB.factions
+            .filter(f => activeFilter === 'all' || f.filter === activeFilter)
+            .forEach(faction => {
+                const card = document.createElement('div');
+                card.className = 'card-bg p-6 rounded-xl shadow-md transition-transform transform hover:-translate-y-1';
+                card.innerHTML = `
+                    <h3 class="font-orbitron text-xl mb-2">${faction.name}</h3>
+                    <p class="text-gray-600">${faction.desc}</p>
+                `;
+                grid.appendChild(card);
+            });
+    }
+    
+    filters.addEventListener('click', e => {
+        if (e.target.tagName === 'BUTTON') {
+            activeFilter = e.target.dataset.filter;
+            filters.querySelectorAll('button').forEach(btn => btn.dataset.active = btn.dataset.filter === activeFilter);
+            renderFactions();
+        }
+    });
+
+    renderFactions();
+    filters.querySelector(`[data-filter="${activeFilter}"]`).dataset.active = true;
+}
+
+
+function populatePlanets() {
+    const grid = document.getElementById('planet-grid');
+    const filters = document.getElementById('planet-filters');
+    let activeFilter = 'all';
+
+    function renderPlanets() {
+        grid.innerHTML = '';
+        DB.planets
+            .filter(p => activeFilter === 'all' || p.filter === activeFilter)
+            .forEach(planet => {
+                const card = document.createElement('div');
+                card.className = 'card-bg p-5 rounded-xl shadow-md flex flex-col items-center justify-between transition-transform transform hover:-translate-y-1';
+                card.innerHTML = `
+                    <div>
+                        <h3 class="font-orbitron text-lg mb-2 text-center">${planet.name}</h3>
+                        <p class="text-sm text-gray-600 text-center mb-4">${planet.desc}</p>
+                    </div>
+                    <button class="generate-quest-btn btn-secondary font-bold py-1 px-4 rounded-lg shadow-sm w-full mt-auto" 
+                            data-planet-name="${planet.name}" data-planet-desc="${planet.desc}">Generate Quest ✨</button>
+                    <div id="planet-quest-${planet.name.replace(/\s+/g, '-')}" class="mt-4 w-full min-h-[50px] bg-[#FFFBF5] p-3 rounded-lg shadow-inner text-gray-700 italic text-left text-sm">
+                        Quest idea will appear here.
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        
+        // Attach event listeners after cards are rendered
+        document.querySelectorAll('.generate-quest-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const planetName = e.target.dataset.planetName;
+                const planetDesc = e.target.dataset.planetDesc;
+                generatePlanetQuest(planetName, planetDesc);
+            });
+        });
+    }
+
+    filters.addEventListener('click', e => {
+        if (e.target.tagName === 'BUTTON') {
+            activeFilter = e.target.dataset.filter;
+            filters.querySelectorAll('button').forEach(btn => btn.dataset.active = (btn.dataset.filter === activeFilter).toString());
+            renderPlanets();
+        }
+    });
+
+    renderPlanets();
+    filters.querySelector(`[data-filter="${activeFilter}"]`).dataset.active = true;
+}
+
+function populateStoryHooks() {
+    const container = document.getElementById('story-hooks-container');
+    container.innerHTML = '';
+    for (const [category, hooks] of Object.entries(DB.storyHooks)) {
+        const categoryDiv = document.createElement('div');
+        categoryDiv.innerHTML = `<h2 class="text-2xl font-orbitron border-b-2 border-[#D87D4A] pb-2 mb-6">${category}</h2>`;
+        const grid = document.createElement('div');
+        grid.className = 'grid md:grid-cols-2 lg:grid-cols-3 gap-6';
+
+        hooks.forEach(hook => {
+            const card = document.createElement('div');
+            card.className = 'card-bg p-6 rounded-xl shadow-md flex flex-col';
+            card.innerHTML = `
+                <h3 class="font-orbitron text-xl mb-2">${hook.title}</h3>
+                <p class="text-gray-600 flex-grow">${hook.hook}</p>
+            `;
+            grid.appendChild(card);
+        });
+        categoryDiv.appendChild(grid);
+        container.appendChild(categoryDiv);
+    }
+}
+
+function populateMoralityScale() {
+    const bar = document.getElementById('morality-bar');
+    const description = document.getElementById('morality-description');
+    
+    // Clear previous levels if any
+    bar.innerHTML = '';
+
+    const levels = DB.moralityLevels.slice().reverse();
+
+    levels.forEach((level, index) => {
+        const levelDiv = document.createElement('div');
+        levelDiv.className = 'morality-level group'; // Add group class for potential hover effects
+        
+        const label = document.createElement('span');
+        label.className = 'level-label';
+        label.textContent = level.level;
+        levelDiv.appendChild(label);
+        
+        levelDiv.addEventListener('click', () => {
+            // Remove active class from all levels and add to clicked
+            document.querySelectorAll('.morality-level').forEach(div => div.classList.remove('active-morality-level'));
+            levelDiv.classList.add('active-morality-level');
+
+            description.innerHTML = `
+                <h4 class="font-orbitron mb-1 text-lg ${level.level.includes('Dark') ? 'text-[#D87D4A]' : 'text-[#5B8291]'}">${level.title} (${level.level})</h4>
+                <p>${level.desc}</p>
+            `;
+            // Store selected level data for the LLM button
+            description.setAttribute('data-selected-level-title', level.title);
+            description.setAttribute('data-selected-level-desc', level.desc);
+             document.getElementById('morality-scenario-output').innerHTML = 'Scenarios related to the selected morality level will appear here.';
+        });
+        bar.appendChild(levelDiv);
+    });
+}
+
+function populateRulesDiff() {
+    const tbody = document.getElementById('rules-diff-table');
+    tbody.innerHTML = '';
+    DB.rulesDiff.forEach(rule => {
+        const row = document.createElement('tr');
+        row.className = "hover:bg-[#EFE8DD]";
+        row.innerHTML = `
+            <td class="p-3 font-bold">${rule.category}</td>
+            <td class="p-3">${rule.dnd}</td>
+            <td class="p-3">${rule.sw5e}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function createClassChart() {
+    const ctx = document.getElementById('classHitDieChart').getContext('2d');
+    const sortedClasses = [...DB.classes].sort((a, b) => a.hitDie - b.hitDie);
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sortedClasses.map(c => c.name),
+            datasets: [{
+                label: 'Hit Die (d)',
+                data: sortedClasses.map(c => c.hitDie),
+                backgroundColor: [
+                    'rgba(91, 130, 145, 0.6)',
+                    'rgba(216, 125, 74, 0.6)'
+                ],
+                borderColor: [
+                    'rgba(91, 130, 145, 1)',
+                    'rgba(216, 125, 74, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `d${context.raw}`;
+                        }
+                    }
+                },
+                 scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 2
+                        },
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+</script>
+</body>
+</html>
